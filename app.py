@@ -2,6 +2,7 @@ import streamlit as st
 import json
 import os
 import pypdf
+import base64
 from datetime import datetime
 
 CONFIG_FILE = "certificate_config.json"
@@ -32,18 +33,19 @@ st.title("📄 Генератор наименований для сертифи
 
 config = load_config()
 
-# Разделение экрана на две части: Слева — файл и информация, Справа — форма и превью
-col_left, col_right = st.columns([1, 2])
+# Разделение экрана на две колонки: Слева — просмотр PDF и информация, Справа — форма и превью
+col_left, col_right = st.columns([1, 1.5])
 
 with col_left:
-    st.subheader("📁 Исходный документ")
+    st.subheader("📁 Исходный документ и просмотр")
     uploaded_file = st.file_uploader("Выберите PDF файл (по одному файлу)", type=["pdf"])
     
     if uploaded_file is not None:
         try:
+            file_bytes = uploaded_file.getvalue()
             reader = pypdf.PdfReader(uploaded_file)
             num_pages = len(reader.pages)
-            file_size = uploaded_file.size / 1024 # КБ
+            file_size = len(file_bytes) / 1024 # КБ
             
             st.success("Файл успешно загружен!")
             st.markdown(f"""
@@ -52,12 +54,19 @@ with col_left:
             - **Количество страниц:** {num_pages}
             """)
             
+            # Отображение содержимого PDF прямо в интерфейсе с помощью iframe (base64)
+            base64_pdf = base64.b64encode(file_bytes).decode('utf-8')
+            pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="600px" type="application/pdf"></iframe>'
+            st.markdown(pdf_display, unsafe_allow_html=True)
+            
             # Временное сохранение для скачивания
             with open("temp_uploaded.pdf", "wb") as f:
-                f.write(uploaded_file.getbuffer())
+                f.write(file_bytes)
                 
         except Exception as e:
             st.error(f"Ошибка чтения файла: {e}")
+    else:
+        st.info("Загрузите PDF-файл, чтобы увидеть его содержимое здесь.")
 
 with col_right:
     st.subheader("⚙️ Параметры наименования по маске")
@@ -144,10 +153,10 @@ with col_right:
     # Кнопка скачивания файла с новым именем
     if uploaded_file is not None:
         with open("temp_uploaded.pdf", "rb") as f:
-            pdf_bytes = f.read()
+            pdf_bytes_dl = f.read()
         st.download_button(
             label="📥 Сохранить файл под новым именем",
-            data=pdf_bytes,
+            data=pdf_bytes_dl,
             file_name=result_name + ".pdf",
             mime="application/pdf"
         )
